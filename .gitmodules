@@ -1,3 +1,0 @@
-[submodule "include/mavlink"]
-	path = include/mavlink
-	url = git@github.com:mavlink/mavlink.git
