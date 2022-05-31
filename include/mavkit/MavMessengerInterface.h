@@ -1,7 +1,7 @@
 #ifndef MAV_MESSENGER_INTERFACE_H
 #define MAV_MESSENGER_INTERFACE_H
 
-#include <mavlink_headers/ardupilotmega/mavlink.h>
+#include "mavlink_dialect.h"
 
 class MavMessengerInterface
 {
