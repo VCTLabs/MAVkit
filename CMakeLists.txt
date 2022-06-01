@@ -14,12 +14,11 @@ else()
     set(MAVLINK_DIALECT common)
 endif()
 
-option(USE_SYSTEM_MAVLINK "Use system-wide installed mavlink headers" OFF)
-option(MAVKIT_ENABLE_LTO "Enable support for link-time optimization" ON)
-
-if(USE_SYSTEM_MAVLINK)
+if(DEFINED ENV{USE_SYSTEM_MAVLINK})
+    # use system-wide installed mavlink headers
     set(MAVLINK_INCLUDES /usr/include/mavlink)
 else()
+    # use vendored submodule reference library
     set(MAVLINK_INCLUDES ${CMAKE_SOURCE_DIR}/ext/c_library_v2)
 endif()
 
@@ -43,12 +42,14 @@ endif()
 
 set(CMAKE_DEBUG_POSTFIX d)
 
-if(NOT CMAKE_BUILD_TYPE)
+if(NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
     set(CMAKE_BUILD_TYPE
-        "Release"
-        CACHE STRING "Default build type: Release" FORCE
+        "RelWithDebInfo"
+        CACHE STRING "Default build type: RelWithDebInfo" FORCE
     )
 endif()
+
+option(MAVKIT_ENABLE_LTO "Enable support for link-time optimization" ON)
 
 # LTO requires cmake min version 3.9 and clang LTO requires lld
 if(MAVKIT_ENABLE_LTO AND CMAKE_BUILD_TYPE MATCHES "Release")
