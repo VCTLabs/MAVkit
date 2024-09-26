@@ -1,0 +1,6 @@
+/*
+ * pull in the correct mavlink dialect header, default is common
+ *
+ */
+
+#include "@MAVLINK_DIALECT@/mavlink.h"

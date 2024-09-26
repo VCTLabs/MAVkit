@@ -1,43 +1,104 @@
-cmake_minimum_required(VERSION 2.8)
-project(mavkit)
+cmake_minimum_required(VERSION 3.16)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-
-################################################################################
-#GENERATE MAVLINK HEADERS
-set(MAVLINK_DIR ../include/mavlink)
-set(MAVLINK_VERSION 2.0)
-set(MAVLINK_HEADERS_DIR generated/mavlink_headers)
-execute_process(COMMAND python ${MAVLINK_DIR}/pymavlink/tools/mavgen.py --lang=C --wire-protocol=${MAVLINK_VERSION} --output=${MAVLINK_HEADERS_DIR} ${MAVLINK_DIR}/message_definitions/v1.0/ardupilotmega.xml RESULT_VARIABLE retval)
-if(NOT retval EQUAL 0)
-    message( FATAL_ERROR "MAVLink headers generation failed")
+if(POLICY CMP0094)
+    cmake_policy(SET CMP0094 NEW)
 endif()
 
-################################################################################
-#PACKAGES
+if(POLICY CMP0077)
+    cmake_policy(SET CMP0077 NEW) # option() honors variables already set
+endif()
+
+if(DEFINED ENV{MAVLINK_DIALECT})
+    set(MAVLINK_DIALECT "$ENV{MAVLINK_DIALECT}")
+else()
+    set(MAVLINK_DIALECT common)
+endif()
+
+if(DEFINED ENV{USE_SYSTEM_MAVLINK})
+    # use system-wide installed mavlink headers
+    set(MAVLINK_INCLUDES /usr/include/mavlink)
+else()
+    # use vendored submodule reference library
+    set(MAVLINK_INCLUDES ${CMAKE_SOURCE_DIR}/ext/c_library_v2)
+endif()
+
+project(
+    mavkit
+    LANGUAGES CXX
+    VERSION 0.0.1
+)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS ON)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL Clang)
+    set(CLANG_DEFAULT_CXX_STDLIB libc++)
+    set(CLANG_DEFAULT_RTLIB compiler-rt)
+endif()
+
+set(CMAKE_DEBUG_POSTFIX d)
+
+if(NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
+    set(CMAKE_BUILD_TYPE
+        "RelWithDebInfo"
+        CACHE STRING "Default build type: RelWithDebInfo" FORCE
+    )
+endif()
+
+option(MAVKIT_ENABLE_LTO "Enable support for link-time optimization" ON)
+
+# LTO requires cmake min version 3.9 and clang LTO requires lld
+if(MAVKIT_ENABLE_LTO AND CMAKE_BUILD_TYPE MATCHES "Release")
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        find_package(LLVM CONFIG)
+    endif()
+
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT ipo_supported OUTPUT error)
+
+    if(ipo_supported)
+        message(STATUS "IPO / LTO supported")
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    else()
+        message(WARNING "IPO / LTO not supported: <${error}>")
+    endif()
+endif()
+
+include(CTest)
+include(GNUInstallDirs)
+
+# CONFIGURE
+configure_file(mavlink_dialect.h.in mavlink_dialect.h)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
+add_compile_options(
+    -Wno-address-of-packed-member -Wno-cast-align  # suppress mavlink warnings
+)
+
+# PACKAGES
 find_package(Boost REQUIRED COMPONENTS regex)
 find_package(Threads REQUIRED)
 
-################################################################################
-#INCLUDES
+# INCLUDES
 include_directories(
-    include
-    ${CMAKE_BINARY_DIR}/generated
+    ${CMAKE_SOURCE_DIR}/include
     ${Boost_INCLUDE_DIRS}
+    ${MAVLINK_INCLUDES}
 )
 
-################################################################################
-#SOURCES
+# SOURCES
 file(GLOB_RECURSE MAVKIT_SRC "src/mavkit/*.cpp")
 
-################################################################################
-#LINK
+# LINK
 LIST(APPEND LINK_LIBS
 	${Boost_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
 
-################################################################################
-#EXECUTABLE
+# EXECUTABLE
 add_executable(${PROJECT_NAME} ${MAVKIT_SRC} src/mavkit.cpp)
 target_link_libraries(${PROJECT_NAME} ${LINK_LIBS})
